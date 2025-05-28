@@ -2,7 +2,6 @@ package src;
 
 import java.io.*;
 import java.net.*;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 /**
@@ -12,12 +11,31 @@ import java.util.*;
 public class ChatServer {
     // 服务器端口号
     private static final int PORT = 8888;
+    // 最大房间数量
+    private static final int MAX_ROOMS = 10;
     // 存储所有连接的客户端处理线程
     private Vector<ClientHandler> clients = new Vector<>();
+    // 存储所有房间
+    private Map<String, Room> rooms = new HashMap<>();
     // 服务器socket
-    private ServerSocket serverSocket;
-    // 服务器运行标志
+    private ServerSocket serverSocket;    // 服务器运行标志
     private boolean isRunning = false;
+    
+    /**
+     * 构造函数，初始化默认房间
+     */
+    public ChatServer() {
+        initializeDefaultRooms();
+    }
+    
+    /**
+     * 初始化默认房间
+     */
+    private void initializeDefaultRooms() {
+        rooms.put("room1", new Room("room1", "大厅"));
+        rooms.put("room2", new Room("room2", "游戏讨论"));
+        rooms.put("room3", new Room("room3", "技术交流"));
+    }
     
     /**
      * 启动服务器
@@ -160,8 +178,7 @@ public class ChatServer {
         clients.remove(client);
         System.out.println("客户端离线，当前在线人数: " + clients.size());
     }
-    
-    /**
+      /**
      * 获取在线用户列表
      * @return 在线用户名称列表
      */
@@ -171,6 +188,65 @@ public class ChatServer {
             usernames.add(client.getUsername());
         }
         return usernames;
+    }
+    
+    /**
+     * 获取房间列表
+     * @return 房间信息字符串
+     */
+    public String getRoomList() {
+        StringBuilder roomList = new StringBuilder("ROOMLIST|");
+        for (Room room : rooms.values()) {
+            roomList.append(room.getRoomId()).append(":")
+                   .append(room.getRoomName()).append(":")
+                   .append(room.getUserCount()).append(",");
+        }
+        
+        // 移除最后一个逗号
+        if (!rooms.isEmpty()) {
+            roomList.deleteCharAt(roomList.length() - 1);
+        }
+        
+        return roomList.toString();
+    }
+    
+    /**
+     * 获取指定房间
+     * @param roomId 房间ID
+     * @return 房间对象，如果不存在则返回null
+     */
+    public Room getRoom(String roomId) {
+        return rooms.get(roomId);
+    }
+    
+    /**
+     * 创建新房间
+     * @param roomName 房间名称
+     * @return 房间ID，如果创建失败返回null
+     */
+    public String createRoom(String roomName) {
+        if (rooms.size() >= MAX_ROOMS) {
+            return null; // 房间数量已达上限
+        }
+        
+        String roomId = "room" + (rooms.size() + 1);
+        Room room = new Room(roomId, roomName);
+        rooms.put(roomId, room);
+        
+        // 广播房间列表更新
+        broadcastRoomList();
+        
+        return roomId;
+    }
+    
+    /**
+     * 向所有客户端广播房间列表
+     */
+    public void broadcastRoomList() {
+        String roomListMessage = getRoomList();
+        for (ClientHandler client : clients) {
+            client.sendMessage(roomListMessage);
+        }
     }
     
     /**

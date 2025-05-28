@@ -8,6 +8,8 @@ import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Map;
+import java.util.HashMap;
 
 /**
  * 聊天客户端类
@@ -26,17 +28,21 @@ public class ChatClient extends JFrame {
       // 网络组件
     private Socket socket;
     private BufferedReader in;
-    private PrintWriter out;
-      // 界面组件
+    private PrintWriter out;    // 界面组件
     private JTextPane chatArea;          // 聊天记录显示区域
     private JTextField messageField;      // 消息输入框
     private JButton sendButton;          // 发送按钮
     private JList<String> userList;      // 用户列表
     private DefaultListModel<String> userListModel;  // 用户列表模型
     private JLabel currentUserLabel;     // 当前用户标签
-    
-    // 用户名
+    private JList<String> roomList;      // 房间列表
+    private DefaultListModel<String> roomListModel;  // 房间列表模型
+    private JLabel currentRoomLabel;     // 当前房间标签
+    private JButton joinRoomButton;      // 加入房间按钮
+    private JButton leaveRoomButton;     // 离开房间按钮    // 用户名和当前房间
     private String username;
+    private String currentRoomId = "";
+    private Map<String, String> roomNameToIdMap = new HashMap<>(); // 房间名称到ID的映射
     
     /**
      * 构造函数，初始化聊天客户端
@@ -124,13 +130,31 @@ public class ChatClient extends JFrame {
         buttonPanel.add(exitButton);
         
         inputPanel.add(messageField, BorderLayout.CENTER);
-        inputPanel.add(buttonPanel, BorderLayout.EAST);
-          // 用户列表区域
+        inputPanel.add(buttonPanel, BorderLayout.EAST);        // 用户列表区域
         userListModel = new DefaultListModel<>();
         userList = new JList<>(userListModel);
         JScrollPane userScrollPane = new JScrollPane(userList);
-        userScrollPane.setBorder(BorderFactory.createTitledBorder("在线用户"));
+        userScrollPane.setBorder(BorderFactory.createTitledBorder("房间用户"));
         userScrollPane.setPreferredSize(new Dimension(150, 0));
+        
+        // 房间列表区域
+        roomListModel = new DefaultListModel<>();
+        roomList = new JList<>(roomListModel);
+        roomList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        JScrollPane roomScrollPane = new JScrollPane(roomList);
+        roomScrollPane.setBorder(BorderFactory.createTitledBorder("房间列表"));
+        roomScrollPane.setPreferredSize(new Dimension(150, 120));
+        
+        // 房间操作按钮
+        joinRoomButton = new JButton("加入房间");
+        leaveRoomButton = new JButton("离开房间");
+        joinRoomButton.addActionListener(e -> joinSelectedRoom());
+        leaveRoomButton.addActionListener(e -> leaveCurrentRoom());
+        leaveRoomButton.setEnabled(false);
+        
+        JPanel roomButtonPanel = new JPanel(new GridLayout(2, 1, 5, 5));
+        roomButtonPanel.add(joinRoomButton);
+        roomButtonPanel.add(leaveRoomButton);
         
         // 当前用户显示区域
         currentUserLabel = new JLabel("当前用户: " + username);
@@ -139,11 +163,30 @@ public class ChatClient extends JFrame {
         currentUserLabel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
         currentUserLabel.setHorizontalAlignment(SwingConstants.CENTER);
         
-        // 创建右侧面板，包含当前用户标签和用户列表
+        // 当前房间显示区域
+        currentRoomLabel = new JLabel("当前房间: 未加入");
+        currentRoomLabel.setFont(new Font("微软雅黑", Font.BOLD, 12));
+        currentRoomLabel.setForeground(new Color(100, 0, 100));
+        currentRoomLabel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        currentRoomLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        
+        // 创建右侧面板，包含用户信息、房间列表和用户列表
         JPanel rightPanel = new JPanel(new BorderLayout());
-        rightPanel.add(currentUserLabel, BorderLayout.NORTH);
-        rightPanel.add(userScrollPane, BorderLayout.CENTER);
-        rightPanel.setPreferredSize(new Dimension(150, 0));
+        
+        // 顶部信息面板
+        JPanel infoPanel = new JPanel(new GridLayout(2, 1));
+        infoPanel.add(currentUserLabel);
+        infoPanel.add(currentRoomLabel);
+        
+        // 房间区域面板
+        JPanel roomPanel = new JPanel(new BorderLayout());
+        roomPanel.add(roomScrollPane, BorderLayout.CENTER);
+        roomPanel.add(roomButtonPanel, BorderLayout.SOUTH);
+        
+        rightPanel.add(infoPanel, BorderLayout.NORTH);
+        rightPanel.add(roomPanel, BorderLayout.CENTER);
+        rightPanel.add(userScrollPane, BorderLayout.SOUTH);
+        rightPanel.setPreferredSize(new Dimension(160, 0));
         
         // 将组件添加到主面板
         mainPanel.add(chatScrollPane, BorderLayout.CENTER);
@@ -159,12 +202,13 @@ public class ChatClient extends JFrame {
                 exitApplication();
             }
         });
-        
-        // 显示窗口
+          // 显示窗口
         setVisible(true);
         
-        // 设置初始焦点
+        // 设置初始焦点和状态
         messageField.requestFocus();
+        messageField.setEnabled(false); // 初始时禁用消息输入
+        sendButton.setEnabled(false);   // 初始时禁用发送按钮
     }
     
     /**
@@ -178,6 +222,12 @@ public class ChatClient extends JFrame {
     private void sendMessage() {
         String message = messageField.getText().trim();
         if (!message.isEmpty()) {
+            // 检查是否已加入房间
+            if (currentRoomId.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "请先加入一个房间再发送消息", "提示", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            
             // 发送消息到服务器
             out.println("CHAT|" + username + ":" + message);
             
@@ -243,7 +293,26 @@ public class ChatClient extends JFrame {
         String displayMessage = "[" + time + "] [系统] " + content + "\n";
         appendToChat(displayMessage, SYSTEM_MESSAGE_COLOR);
         System.out.println("显示系统消息: " + displayMessage);
-    }    /**
+        
+        // 处理房间相关的系统消息
+        if (content.startsWith("成功加入房间:")) {
+            // 提取房间名称
+            String roomName = content.substring(7).trim();
+            currentRoomLabel.setText("当前房间: " + roomName);
+            joinRoomButton.setEnabled(false);
+            leaveRoomButton.setEnabled(true);
+            messageField.setEnabled(true);
+            sendButton.setEnabled(true);
+        } else if (content.equals("已离开房间")) {
+            currentRoomId = "";
+            currentRoomLabel.setText("当前房间: 未加入");
+            joinRoomButton.setEnabled(true);
+            leaveRoomButton.setEnabled(false);
+            messageField.setEnabled(false);
+            sendButton.setEnabled(false);
+            userListModel.clear(); // 清空房间用户列表
+        }
+    }/**
      * 处理收到的聊天消息
      */
     private void handleChatMessage(String message) {
@@ -313,7 +382,93 @@ public class ChatClient extends JFrame {
             }
         }
     }
+      /**
+     * 加入选中的房间
+     */
+    private void joinSelectedRoom() {
+        String selectedRoom = roomList.getSelectedValue();
+        if (selectedRoom != null) {
+            // 解析房间信息 (格式: 房间名称 (ID: roomId, 人数: count))
+            String roomId = extractRoomId(selectedRoom);
+            if (roomId != null) {
+                currentRoomId = roomId; // 设置当前房间ID
+                out.println("JOINROOM|" + roomId);
+            }
+        } else {
+            JOptionPane.showMessageDialog(this, "请先选择一个房间", "提示", JOptionPane.WARNING_MESSAGE);
+        }
+    }
     
+    /**
+     * 离开当前房间
+     */
+    private void leaveCurrentRoom() {
+        if (!currentRoomId.isEmpty()) {
+            out.println("LEAVEROOM|" + currentRoomId);
+        }
+    }    /**
+     * 从房间显示文本中提取房间ID
+     */
+    private String extractRoomId(String roomText) {
+        // 新的房间显示格式: "房间名称 (人数: count/10)"
+        // 提取房间名称，然后从映射中获取房间ID
+        int parenthesesIndex = roomText.indexOf(" (人数:");
+        if (parenthesesIndex != -1) {
+            String roomName = roomText.substring(0, parenthesesIndex);
+            return roomNameToIdMap.get(roomName);
+        }
+        return null;
+    }/**
+     * 更新房间列表
+     */
+    private void updateRoomList(String roomListStr) {
+        // 清空当前列表和映射
+        roomListModel.clear();
+        roomNameToIdMap.clear();
+        
+        // 解析房间列表字符串 (格式: ROOMLIST|roomId:roomName:userCount,...)
+        String[] rooms = roomListStr.substring(9).split(",");
+        for (String room : rooms) {
+            if (!room.isEmpty()) {
+                String[] parts = room.split(":");
+                if (parts.length == 3) {
+                    String roomId = parts[0];
+                    String roomName = parts[1];
+                    String userCount = parts[2];
+                    String displayText = roomName + " (人数: " + userCount + "/10)";
+                    roomListModel.addElement(displayText);
+                    // 维护房间名称到ID的映射
+                    roomNameToIdMap.put(roomName, roomId);
+                }
+            }
+        }
+    }
+    
+    /**
+     * 更新房间用户列表
+     */
+    private void updateRoomUserList(String userListStr) {
+        // 清空当前列表
+        userListModel.clear();
+        
+        // 解析用户列表字符串 (格式: ROOMUSERLIST|roomId|user1,user2,...)
+        String[] parts = userListStr.split("\\|", 3);
+        if (parts.length == 3) {
+            String roomId = parts[1];
+            String usersPart = parts[2];
+            
+            // 只有当前房间的用户列表才更新
+            if (roomId.equals(currentRoomId)) {
+                String[] users = usersPart.split(",");
+                for (String user : users) {
+                    if (!user.isEmpty()) {
+                        userListModel.addElement(user);
+                    }
+                }
+            }
+        }
+    }
+
     /**
      * 消息接收线程，负责接收并处理服务器发来的消息
      */
@@ -337,6 +492,10 @@ public class ChatClient extends JFrame {
                             handleChatMessage(msg);
                         } else if (msg.startsWith("USERLIST|")) {
                             updateOnlineUsers(msg);
+                        } else if (msg.startsWith("ROOMLIST|")) {
+                            updateRoomList(msg);
+                        } else if (msg.startsWith("ROOMUSERLIST|")) {
+                            updateRoomUserList(msg);
                         } else {
                             System.out.println("未知消息格式: " + msg);
                         }
