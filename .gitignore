@@ -1,0 +1,16 @@
+# 编译生成的class文件
+*.class
+
+# 包文件
+*.jar
+*.war
+*.ear
+
+# IDE文件
+.idea/
+*.iml
+.vscode/
+
+# 操作系统生成的文件
+.DS_Store
+Thumbs.db
