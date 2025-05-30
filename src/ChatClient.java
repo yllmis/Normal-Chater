@@ -1,6 +1,7 @@
 package src;
 
 import javax.swing.*;
+import javax.swing.text.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
@@ -89,11 +90,13 @@ public class ChatClient extends JFrame {
             System.exit(1);
         }
     }
-    
-    /**
+      /**
      * 初始化图形界面
      */
     private void initGUI() {
+        // 创建菜单栏
+        createMenuBar();
+        
         // 设置窗口属性
         setSize(700, 500);
         setMinimumSize(new Dimension(600, 400));
@@ -250,13 +253,61 @@ public class ChatClient extends JFrame {
         messageField.setEnabled(false); // 初始时禁用消息输入
         sendButton.setEnabled(false);   // 初始时禁用发送按钮
     }
-    
-    /**
+      /**
      * 发送登录消息
      */
     private void sendLoginMessage() {
         out.println("LOGIN|" + username);
-    }    /**
+    }
+    
+    /**
+     * 创建菜单栏
+     */
+    private void createMenuBar() {
+        JMenuBar menuBar = new JMenuBar();
+        
+        // 创建帮助菜单
+        JMenu helpMenu = new JMenu("帮助");
+        helpMenu.setFont(new Font("微软雅黑", Font.PLAIN, 14));
+        
+        // 创建关于菜单项
+        JMenuItem aboutMenuItem = new JMenuItem("关于");
+        aboutMenuItem.setFont(new Font("微软雅黑", Font.PLAIN, 14));
+        aboutMenuItem.addActionListener(e -> showAboutDialog());
+        
+        // 将菜单项添加到帮助菜单
+        helpMenu.add(aboutMenuItem);
+        
+        // 将帮助菜单添加到菜单栏
+        menuBar.add(helpMenu);
+        
+        // 设置菜单栏
+        setJMenuBar(menuBar);
+    }
+    
+    /**
+     * 显示关于对话框
+     */
+    private void showAboutDialog() {
+        String aboutMessage = 
+            "多用户网络聊天室\n\n" +
+            "版本: 1.0\n" +
+            "开发语言: Java\n" +
+            "功能特性:\n" +
+            "• 多用户在线聊天\n" +
+            "• 房间创建与管理\n" +
+            "• 用户列表显示\n" +
+            "• 实时消息同步\n\n" +
+            "开发时间: 2025年\n" +
+            "技术支持: Java Socket + Swing GUI\n"  ;
+        
+        JOptionPane.showMessageDialog(
+            this,
+            aboutMessage,
+            "关于 - 多用户网络聊天室",
+            JOptionPane.INFORMATION_MESSAGE
+        );
+    }/**
      * 发送聊天消息
      */
     private void sendMessage() {
@@ -404,14 +455,14 @@ public class ChatClient extends JFrame {
     private void appendToChat(String message, Color color) {
         try {
             // 获取文档
-            javax.swing.text.Document doc = chatArea.getDocument();
+            Document doc = chatArea.getDocument();
             
             // 保存当前的文档样式
-            javax.swing.text.StyleContext sc = javax.swing.text.StyleContext.getDefaultStyleContext();
-            javax.swing.text.AttributeSet aset = sc.addAttribute(javax.swing.text.SimpleAttributeSet.EMPTY, 
-                javax.swing.text.StyleConstants.Foreground, color);
-            aset = sc.addAttribute(aset, javax.swing.text.StyleConstants.FontFamily, CHAT_FONT.getFamily());
-            aset = sc.addAttribute(aset, javax.swing.text.StyleConstants.FontSize, CHAT_FONT.getSize());
+            StyleContext sc =  StyleContext.getDefaultStyleContext();
+            AttributeSet aset = sc.addAttribute( SimpleAttributeSet.EMPTY, 
+                 StyleConstants.Foreground, color);
+            aset = sc.addAttribute(aset,  StyleConstants.FontFamily, CHAT_FONT.getFamily());
+            aset = sc.addAttribute(aset,  StyleConstants.FontSize, CHAT_FONT.getSize());
             
             // 在文档末尾插入文本
             int len = doc.getLength();
