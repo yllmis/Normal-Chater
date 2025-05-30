@@ -1,5 +1,5 @@
 @echo off
-echo å¯åŠ¨èŠå¤©å®¢æˆ·ç«¯...
+echo Æô¶¯ÁÄÌì¿Í»§¶Ë...
 cd /d "%~dp0"
 java -cp . src.ChatClient
 pause
