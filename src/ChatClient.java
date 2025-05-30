@@ -132,10 +132,7 @@ public class ChatClient extends JFrame {
         inputPanel.add(messageField, BorderLayout.CENTER);
         inputPanel.add(buttonPanel, BorderLayout.EAST);        // 用户列表区域
         userListModel = new DefaultListModel<>();
-        userList = new JList<>(userListModel);
-        JScrollPane userScrollPane = new JScrollPane(userList);
-        userScrollPane.setBorder(BorderFactory.createTitledBorder("房间用户"));
-        userScrollPane.setPreferredSize(new Dimension(150, 0));
+
         
         // 房间列表区域
         roomListModel = new DefaultListModel<>();
@@ -144,49 +141,92 @@ public class ChatClient extends JFrame {
         JScrollPane roomScrollPane = new JScrollPane(roomList);
         roomScrollPane.setBorder(BorderFactory.createTitledBorder("房间列表"));
         roomScrollPane.setPreferredSize(new Dimension(150, 120));
-        
+
+
+        userList = new JList<>(userListModel);
+        JScrollPane userScrollPane = new JScrollPane(userList);
+        userScrollPane.setBorder(BorderFactory.createTitledBorder("在线用户"));
+        userScrollPane.setPreferredSize(new Dimension(150, 120));
+
+        // 使用CardLayout切换房间列表和用户列表
+        JPanel cardPanel = new JPanel(new CardLayout());
+        cardPanel.add(roomScrollPane, "roomList");
+        cardPanel.add(userScrollPane, "userList");
+
         // 房间操作按钮
         joinRoomButton = new JButton("加入房间");
         leaveRoomButton = new JButton("离开房间");
         joinRoomButton.addActionListener(e -> joinSelectedRoom());
         leaveRoomButton.addActionListener(e -> leaveCurrentRoom());
         leaveRoomButton.setEnabled(false);
-        
-        JPanel roomButtonPanel = new JPanel(new GridLayout(2, 1, 5, 5));
+
+        roomButtonPanel = new JPanel(new GridLayout(5, 1, 5, 5));
         roomButtonPanel.add(joinRoomButton);
         roomButtonPanel.add(leaveRoomButton);
-        
+
+        // 添加创建房间按钮
+        createRoomButton = new JButton("创建房间");
+        createRoomButton.addActionListener(e -> createNewRoom());
+        roomButtonPanel.add(createRoomButton);
+
+        // 添加房间号输入框
+        roomIdField = new JTextField(); // 保存到成员变量
+        roomIdField.setToolTipText("输入房间号直接加入");
+        joinByIdButton = new JButton("输入房间号加入"); // 保存按钮引用
+        joinByIdButton.addActionListener(e -> joinRoomById(roomIdField.getText().trim()));
+
+        JPanel joinByIdPanel = new JPanel(new BorderLayout(5, 0));
+        joinByIdPanel.add(roomIdField, BorderLayout.CENTER);
+        joinByIdPanel.add(joinByIdButton, BorderLayout.EAST);
+        roomButtonPanel.add(joinByIdPanel);
+
+        // 添加列表切换按钮
+        JButton toggleListButton = new JButton("显示用户列表");
+        toggleListButton.addActionListener(e -> {
+            CardLayout cl = (CardLayout)(cardPanel.getLayout());
+            if (toggleListButton.getText().equals("显示用户列表")) {
+                cl.show(cardPanel, "userList");
+                toggleListButton.setText("显示房间列表");
+            } else {
+                cl.show(cardPanel, "roomList");
+                toggleListButton.setText("显示用户列表");
+            }
+        });
+        roomButtonPanel.add(toggleListButton);
+
         // 当前用户显示区域
         currentUserLabel = new JLabel("当前用户: " + username);
         currentUserLabel.setFont(new Font("微软雅黑", Font.BOLD, 14));
         currentUserLabel.setForeground(new Color(0, 100, 0));
         currentUserLabel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
         currentUserLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        
+
         // 当前房间显示区域
         currentRoomLabel = new JLabel("当前房间: 未加入");
         currentRoomLabel.setFont(new Font("微软雅黑", Font.BOLD, 12));
         currentRoomLabel.setForeground(new Color(100, 0, 100));
         currentRoomLabel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
         currentRoomLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        
-        // 创建右侧面板，包含用户信息、房间列表和用户列表
+
+        // 创建右侧面板
         JPanel rightPanel = new JPanel(new BorderLayout());
-        
+
         // 顶部信息面板
         JPanel infoPanel = new JPanel(new GridLayout(2, 1));
         infoPanel.add(currentUserLabel);
         infoPanel.add(currentRoomLabel);
-        
-        // 房间区域面板
-        JPanel roomPanel = new JPanel(new BorderLayout());
-        roomPanel.add(roomScrollPane, BorderLayout.CENTER);
-        roomPanel.add(roomButtonPanel, BorderLayout.SOUTH);
-        
+
+        // 主内容面板
+        JPanel contentPanel = new JPanel(new BorderLayout());
+        contentPanel.add(cardPanel, BorderLayout.CENTER);
+        contentPanel.add(roomButtonPanel, BorderLayout.SOUTH);
+
         rightPanel.add(infoPanel, BorderLayout.NORTH);
-        rightPanel.add(roomPanel, BorderLayout.CENTER);
-        rightPanel.add(userScrollPane, BorderLayout.SOUTH);
+        rightPanel.add(contentPanel, BorderLayout.CENTER);
         rightPanel.setPreferredSize(new Dimension(160, 0));
+
+        // 保存CardLayout引用
+        cardLayout = (CardLayout) cardPanel.getLayout();
         
         // 将组件添加到主面板
         mainPanel.add(chatScrollPane, BorderLayout.CENTER);
@@ -288,6 +328,8 @@ public class ChatClient extends JFrame {
     }    /**
      * 处理收到的系统消息
      */
+    private CardLayout cardLayout; // 用于切换房间/用户列表
+
     private void handleSystemMessage(String content) {
         String time = getCurrentTime();
         String displayMessage = "[" + time + "] [系统] " + content + "\n";
@@ -303,6 +345,14 @@ public class ChatClient extends JFrame {
             leaveRoomButton.setEnabled(true);
             messageField.setEnabled(true);
             sendButton.setEnabled(true);
+            roomIdField.setEnabled(false); // 禁用房间号输入框
+            joinByIdButton.setEnabled(false); // 禁用"输入房间号加入"按钮
+            createRoomButton.setEnabled(false); // 禁用创建房间按钮
+            cardLayout.show(cardPanel, "userList"); // 切换到用户列表
+        } else if (content.startsWith("房间创建成功，房间ID: ")) {
+            // 自动加入新创建的房间
+            String roomId = content.substring("房间创建成功，房间ID: ".length()).trim();
+            joinRoomById(roomId);
         } else if (content.equals("已离开房间")) {
             currentRoomId = "";
             currentRoomLabel.setText("当前房间: 未加入");
@@ -311,6 +361,21 @@ public class ChatClient extends JFrame {
             messageField.setEnabled(false);
             sendButton.setEnabled(false);
             userListModel.clear(); // 清空房间用户列表
+            roomIdField.setEnabled(true); // 启用房间号输入框
+            joinByIdButton.setEnabled(true); // 启用"输入房间号加入"按钮
+            createRoomButton.setEnabled(true); // 启用创建房间按钮
+            // 强制切换回房间列表并重置切换按钮状态
+            cardLayout.show(cardPanel, "roomList");
+            // 遍历roomButtonPanel的子组件找到toggleListButton
+            for (Component comp : roomButtonPanel.getComponents()) {
+                if (comp instanceof JButton) {
+                    JButton button = (JButton)comp;
+                    if (button.getText().equals("显示房间列表")) {
+                        button.setText("显示用户列表");
+                        break;
+                    }
+                }
+            }
         }
     }/**
      * 处理收到的聊天消息
@@ -391,8 +456,7 @@ public class ChatClient extends JFrame {
             // 解析房间信息 (格式: 房间名称 (ID: roomId, 人数: count))
             String roomId = extractRoomId(selectedRoom);
             if (roomId != null) {
-                currentRoomId = roomId; // 设置当前房间ID
-                out.println("JOINROOM|" + roomId);
+                joinRoomById(roomId);
             }
         } else {
             JOptionPane.showMessageDialog(this, "请先选择一个房间", "提示", JOptionPane.WARNING_MESSAGE);
@@ -400,13 +464,64 @@ public class ChatClient extends JFrame {
     }
     
     /**
+     * 通过房间号加入房间
+     * @param roomId 房间ID
+     */
+    private JPanel cardPanel; // CardLayout容器面板
+    private JTextField roomIdField; // 保存房间号输入框引用
+    private JButton joinByIdButton; // 保存"输入房间号加入"按钮引用
+    private JButton createRoomButton; // 创建房间按钮
+    private JPanel roomButtonPanel; // 房间操作按钮面板
+
+    private void joinRoomById(String roomId) {
+        if (!roomId.isEmpty()) {
+            currentRoomId = roomId;
+            out.println("JOINROOM|" + roomId);
+            roomIdField.setText(""); // 直接使用保存的引用清空输入框
+        } else {
+            appendToChat("系统: 请输入有效的房间号", SYSTEM_MESSAGE_COLOR);
+        }
+    }
+    
+    /**
+     * 创建新房间
+     */
+    private void createNewRoom() {
+        String roomName = JOptionPane.showInputDialog(this, "请输入新房间名称:", "创建房间", JOptionPane.QUESTION_MESSAGE);
+        if (roomName != null && !roomName.trim().isEmpty()) {
+            out.println("CREATEROOM|" + roomName);
+            // 服务器会返回SYSTEM消息，在handleSystemMessage中处理自动加入
+        }
+    }
+    
+    /**
      * 离开当前房间
      */
-    private void leaveCurrentRoom() {
-        if (!currentRoomId.isEmpty()) {
-            out.println("LEAVEROOM|" + currentRoomId);
+private void leaveCurrentRoom() {
+    if (!currentRoomId.isEmpty()) {
+        out.println("LEAVEROOM|" + currentRoomId);
+        currentRoomId = "";
+        currentRoomLabel.setText("当前房间: 未加入");
+        joinRoomButton.setEnabled(true);
+        leaveRoomButton.setEnabled(false);
+        messageField.setEnabled(false);
+        sendButton.setEnabled(false);
+        userListModel.clear();
+        roomIdField.setEnabled(true);
+        joinByIdButton.setEnabled(true);
+        createRoomButton.setEnabled(true);
+        // 强制切换回房间列表
+        cardLayout.show(cardPanel, "roomList");
+        // 重置切换按钮状态
+        for (Component comp : roomButtonPanel.getComponents()) {
+            if (comp instanceof JButton && ((JButton)comp).getText().equals("显示房间列表")) {
+                ((JButton)comp).setText("显示用户列表");
+                break;
+            }
         }
-    }    /**
+    }
+}
+  /**
      * 从房间显示文本中提取房间ID
      */
     private String extractRoomId(String roomText) {
