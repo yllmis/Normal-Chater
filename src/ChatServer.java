@@ -120,9 +120,7 @@ public class ChatServer {
      * 检查服务器是否正在运行
      * @return true如果服务器正在运行
      */
-    public boolean isRunning() {
-        return isRunning;
-    }
+
     
     /**
      * 向所有客户端广播消息
@@ -178,7 +176,8 @@ public class ChatServer {
         clients.remove(client);
         System.out.println("客户端离线，当前在线人数: " + clients.size());
     }
-      /**
+    
+    /**
      * 获取在线用户列表
      * @return 在线用户名称列表
      */
@@ -250,6 +249,20 @@ public class ChatServer {
     }
     
     /**
+     * 获取所有房间信息
+     */
+    public Map<String, Room> getRooms() {
+        return new HashMap<>(rooms);
+    }
+    
+    /**
+     * 检查服务器是否在运行
+     */
+    public boolean isRunning() {
+        return isRunning;
+    }
+    
+    /**
      * 主方法，启动服务器
      */
     public static void main(String[] args) {
@@ -273,6 +286,9 @@ public class ChatServer {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+        
+        // 启动管理界面
+
         
         // 控制台输入监听
         Scanner scanner = new Scanner(System.in);
