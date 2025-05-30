@@ -209,14 +209,66 @@ public class ChatServer {
         
         return roomList.toString();
     }
-    
-    /**
+      /**
      * 获取指定房间
      * @param roomId 房间ID
      * @return 房间对象，如果不存在则返回null
      */
     public Room getRoom(String roomId) {
         return rooms.get(roomId);
+    }
+    
+    /**
+     * 显示按房间分组的用户状态
+     */
+    public void displayRoomUserStatus() {
+        System.out.println("\n========== 房间用户分布 ==========");
+        
+        // 统计未加入房间的用户
+        ArrayList<String> unassignedUsers = new ArrayList<>();
+        for (ClientHandler client : clients) {
+            if (client.getCurrentRoomId() == null || client.getCurrentRoomId().isEmpty()) {
+                unassignedUsers.add(client.getUsername());
+            }
+        }
+        
+        // 显示各个房间的用户
+        for (Room room : rooms.values()) {
+            System.out.println("\n" + room.getRoomName() + " (" + room.getRoomId() + "):");
+            System.out.println("  用户数: " + room.getUserCount() + "/10");
+            if (room.getUserCount() > 0) {
+                System.out.print("  用户列表: ");
+                ArrayList<String> users = room.getUsers();
+                for (int i = 0; i < users.size(); i++) {
+                    System.out.print(users.get(i));
+                    if (i < users.size() - 1) {
+                        System.out.print(", ");
+                    }
+                }
+                System.out.println();
+            } else {
+                System.out.println("  (房间为空)");
+            }
+        }
+        
+        // 显示未加入房间的用户
+        System.out.println("\n未加入房间的用户:");
+        System.out.println("  用户数: " + unassignedUsers.size());
+        if (unassignedUsers.size() > 0) {
+            System.out.print("  用户列表: ");
+            for (int i = 0; i < unassignedUsers.size(); i++) {
+                System.out.print(unassignedUsers.get(i));
+                if (i < unassignedUsers.size() - 1) {
+                    System.out.print(", ");
+                }
+            }
+            System.out.println();
+        } else {
+            System.out.println("  (无)");
+        }
+        
+        System.out.println("\n总在线用户数: " + clients.size());
+        System.out.println("===============================\n");
     }
     
     /**
@@ -286,12 +338,10 @@ public class ChatServer {
                 if ("quit".equals(input) || "exit".equals(input)) {
                     System.out.println("收到退出命令，正在关闭服务器...");
                     server.stop();
-                    break;
-                } else if ("status".equals(input)) {
+                    break;                } else if ("status".equals(input)) {
                     if (server.isRunning()) {
                         System.out.println("服务器状态: 运行中");
-                        System.out.println("当前在线用户数: " + server.clients.size());
-                        System.out.println("在线用户: " + server.getOnlineUsers());
+                        server.displayRoomUserStatus();
                     } else {
                         System.out.println("服务器状态: 已停止");
                     }
